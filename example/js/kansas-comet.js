@@ -8,11 +8,12 @@
    var please_debug = false;
    var socketConnection = null;
 
+
    var debug = function () { };
 
    var failure_callback = function(ig,ty,msg,re) {
 		console.error("redraw failed (retrying) : " + ig + "," + ty + "," + msg);
-	}
+   };
 
    $.kc = {
    // If we want to debug, then add a true
@@ -35,7 +36,7 @@
            // Expecting data inform of script and executing on client side.
            console.log("script to be executed : " + event.data);
            eval(event.data);
-         }
+         };
       }
       else {
         $.ajax({ url: the_prefix,
@@ -151,24 +152,26 @@
                     dataType: "json"});
    },
    event: function (obj) {
+     if(socketConnection) {
+       console.log(obj);
+       socketConnection.send($.toJSON(obj));
+     }
+     else{
       debug('event(' + $.toJSON(obj) + ')');
-           $.ajax({ url: the_prefix + "/event/" + kansascomet_server + "/" + kansascomet_session,
-                    type: "POST",
-                    // This wrapper is needed because the JSON parser
-                    // used on the Haskell side only supports objects
-                    // and arrays. But the returned data might be just
-                    // a number or a boolean. So this wrapper keeps
-                    // the value safe to parse and has to be unwrapped
-                    // on server side. Formatting it as string is also
-                    // important for some reason.
-                    data: "{ \"data\": " + $.toJSON(obj) + " }",
-                    contentType: "application/json; charset=utf-8",
-                    dataType: "json"});
-   },
+      $.ajax({ url: the_prefix + "/event/" + kansascomet_server + "/" + kansascomet_session,
+               type: "POST",
+               // This wrapper is needed because the JSON parser
+               // used on the Haskell side only supports objects
+               // and arrays. But the returned data might be just
+               // a number or a boolean. So this wrapper keeps
+               // the value safe to parse and has to be unwrapped
+               // on server side. Formatting it as string is also
+               // important for some reason.
+               data: "{ \"data\": " + $.toJSON(obj) + " }",
+               contentType: "application/json; charset=utf-8",
+               dataType: "json"});
+     }
 
-   eventWebsocket: function(obj) {
-      console.log(obj);
-      socketConnection.send($.toJSON(obj));
    }
-     };
+};
 })(jQuery);

@@ -33,12 +33,14 @@ import Data.Text.Lazy
 main :: IO ()
 main = do
     putStrLn "Serving on http://localhost:3000"
-    app <- scotty_app
-    runSettings (setPort 3000 defaultSettings) $ WaiWS.websocketsOr WS.defaultConnectionOptions application app
+    scottyApp <- scotty_app
+    runSettings (setPort 3000 defaultSettings) $ WaiWS.websocketsOr WS.defaultConnectionOptions (socketApplication web_app) scottyApp
 
 
 --scotty_app :: IO Application
-scotty_app = scottyApp $ do
+scotty_app =
+
+        scottyApp $ do
 
         kcomet <- liftIO kCometPlugin
 
@@ -111,52 +113,6 @@ parseEvent (Object v) = (do
                                 else mzero)
           -- A non-Object value is of the wrong type, so fail.
 parseEvent _          = mzero
-
-
-application :: WS.PendingConnection -> IO ()
-application pending = do
-    conn <- WS.acceptRequest pending
-    putStrLn "Received request from webclient"
-    msg::T.Text  <-  WS.receiveData conn
-    putStrLn $ show msg
-    WS.sendTextData conn $ T.unlines
-        [ "$('body').on('slide', '.slide', function (event,aux) {"
-        , "$.kc.eventWebsocket({eventname: 'slide', count: aux.value });"
-        , "});"
-        ]
-    WS.sendTextData conn $ T.unlines
-        [ "$('body').on('click', '.click', function (event,aux) {"
-        , "$.kc.eventWebsocket({eventname: 'click', id: $(this).attr('id'), pageX: event.pageX, pageY: event.pageY });"
-        , "});"
-        ]
-    webSocketControl conn 0
-
-webSocketControl conn model = do
-    evnt <- WS.receiveData conn
-  --  putStrLn $ show $ decode' evnt
-    let val = fromJust $ decode' evnt
-    putStrLn $ show val
-    case parse parseEvent val of
-           Success evt -> case evt of
-                   Slide n                        -> viewSocket conn n
-                   Click "up"    _ _ | model < 25 -> viewSocket conn (model + 1)
-                   Click "down"  _ _ | model > 0  -> viewSocket conn (model - 1)
-                   Click "reset" _ _              -> viewSocket conn 0
-                   _ -> webSocketControl conn model
-           _ -> webSocketControl conn model
-
-
---view :: Document -> Int -> IO ()
-viewSocket conn n = do
-    WS.sendTextData conn $ T.unlines
-                [ "$('#slider').slider('value'," <> T.pack(show n) <> ");"
-                , "$('#fib-out').html('fib " <> T.pack(show n) <> " = ...')"
-                ]
-    -- sent a 2nd packet, because it will take time to compute fib
-    WS.sendTextData conn ("$('#fib-out').text('fib " <> T.pack(show n) <> " = " <> T.pack(show (fib n)) <> "')")
-
-    webSocketControl conn n
-
 
 data Event = Slide Int
            | Click String Int Int

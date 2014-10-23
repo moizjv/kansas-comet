@@ -19,7 +19,7 @@ import Control.Monad
 import Control.Concurrent.STM as STM
 import Control.Concurrent.MVar as STM
 import Control.Monad.IO.Class
-import Paths_kansas_comet
+import Paths_kansas_comet_example
 import qualified Data.Map as Map
 import Control.Concurrent
 import Data.Default
