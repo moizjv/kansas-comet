@@ -28,7 +28,15 @@
       }
       // If browser supports websocket use websocket else fallback on comet
       if (window.WebSocket) {
-         socketConnection = new WebSocket("ws://localhost:3000");
+         var loc = window.location,
+            new_uri = null;
+         if (loc.protocol === "https:") {
+            new_uri = "wss:";
+         } else {
+            new_uri = "ws:";
+         }
+         new_uri += "//" + loc.host;
+         socketConnection = new WebSocket(new_uri);
          socketConnection.onopen = function (event) {
             socketConnection.send("handShakeComplete");
          };
