@@ -12,7 +12,7 @@
    var debug = function () { };
 
    var failure_callback = function(ig,ty,msg,re) {
-		console.error("redraw failed (retrying) : " + ig + "," + ty + "," + msg);
+    console.error("redraw failed (retrying) : " + ig + "," + ty + "," + msg);
    };
 
    $.kc = {
@@ -21,15 +21,15 @@
       the_prefix = prefix;
       // if there is a ?debug=0, then send debug messages to it
      if (window.location.search == '?debug=1')  {
-	       console.log("using logging to console for " + prefix);
+         console.log("using logging to console for " + prefix);
          debug = function(arg) {
-	          console.log(arg);
+            console.log(arg);
          };
       }
       // If browser supports websocket use websocket else fallback on comet
       if (window.WebSocket) {
-         var loc = window.location,
-            new_uri = null;
+         var loc     = window.location,
+             new_uri = null;
          if (loc.protocol === "https:") {
             new_uri = "wss:";
          } else {
@@ -42,7 +42,6 @@
          };
          socketConnection.onmessage = function (event) {
            // Expecting data inform of script and executing on client side.
-           console.log("script to be executed : " + event.data);
            eval(event.data);
          };
       }
@@ -65,7 +64,7 @@
 
    // Set failure behavior
    failure: function(f) {
-	failure_callback = f;
+  failure_callback = f;
    },
 
    redraw: function (count) {
@@ -74,9 +73,9 @@
                   type: "GET",
                   dataType: "script",
                   success: function success() { $.kc.redraw(count + 1); },
-		  error: function failure(ig,ty,msg) {
-			failure_callback(ig,ty,msg,function() { $.kc.redraw(count + 1); });
-		  }
+      error: function failure(ig,ty,msg) {
+      failure_callback(ig,ty,msg,function() { $.kc.redraw(count + 1); });
+      }
              });
                // TODO: Add failure; could happen
         },
@@ -88,26 +87,26 @@
       debug('register(' + scope + ',' + eventname + ')');
       var fulleventname = scope + "/" + eventname;
            eventQueues[fulleventname] = [];
-	   if (fn == null) {
-	       // no special setup required, because no callback to call.
-	   } else {
+     if (fn == null) {
+         // no special setup required, because no callback to call.
+     } else {
                $(scope).on(eventname, "." + eventname, function (event,aux) {
                   var e = fn(this,event,aux);
                   debug('{callback}on(' + eventname + ')');
                   e.eventname = eventname;
                   $.kc.send(fulleventname,e);
               });
-	   }
+     }
    },
 
    send: function (fulleventname, event) {
       debug('send(' + fulleventname + ')');
       if (eventCallbacks[fulleventname] == undefined) {
-      		if (eventQueues[fulleventname] != undefined) {
+          if (eventQueues[fulleventname] != undefined) {
                    eventQueues[fulleventname].push(event);
-		} else {
-      		     debug('send(' + fulleventname + ') not sent (no one listening)');
-		}
+    } else {
+               debug('send(' + fulleventname + ') not sent (no one listening)');
+    }
            } else {
                    eventCallbacks[fulleventname](event);
            }
@@ -161,7 +160,6 @@
    },
    event: function (obj) {
      if(socketConnection) {
-       console.log(obj);
        socketConnection.send($.toJSON(obj));
      }
      else{
