@@ -33,13 +33,13 @@ import Data.Time.Clock
 import Numeric
 import qualified Network.WebSockets as WS
 
-
+-- Opening web-socket connection and handling calling the call-back function
+-- Adding websocket connection to Docuement object
 
 socketApplication :: (Document -> IO ()) -> WS.PendingConnection -> IO ()
 socketApplication callback pending = do
     conn <- WS.acceptRequest pending
     evnt::T.Text <- WS.receiveData conn
-    putStrLn $ show evnt
     picture <- atomically $ newEmptyTMVar
     callbacks <- atomically $ newTVar $ Map.empty
     queue <- atomically $ newTChan
@@ -47,12 +47,11 @@ socketApplication callback pending = do
     callback cxt
     receiveEvents conn cxt
 
+-- Continuously listening to incoming socket connection
 
 receiveEvents :: WS.Connection -> Document -> IO()
 receiveEvents conn document = forever $ do
     evnt <- WS.receiveData conn
-    putStrLn $ show evnt
-    putStrLn "Received evnt"
     let val = fromJust $ decode' evnt
     liftIO $ atomically $ do
                           writeTChan (eventQueue document) val
@@ -216,13 +215,14 @@ kCometPlugin = do
         return $ dataDir ++ "/static/js/kansas-comet.js"
 
 -- | 'send' sends a javascript fragement to a document.
+-- Checks for socket connection if present uses socket connection to send the document.
 -- The Text argument will be evaluated before sending (in case there is an error,
 -- or some costly evaluation needs done first).
 -- 'send' suspends the thread if the last javascript has not been *dispatched*
 -- the the browser.
 send :: Document -> T.Text -> IO ()
 send doc js =
-  case (conn doc) of
+  case (socketConnection doc) of
     Just connection -> WS.sendTextData connection $ js
     Nothing -> atomically $ putTMVar (sending doc) $! js
 
@@ -240,13 +240,13 @@ getReply doc num = do
 
 -- | 'Document' is the Handle into a specific interaction with a web page.
 data Document = Document
-        { sending    :: TMVar T.Text             -- ^ Code to be sent to the browser
-                                                 -- This is a TMVar to stop the generation
-                                                 -- getting ahead of the rendering engine
-        , replies    :: TVar (Map.Map Int Value) -- ^ This is numbered replies, to ports
-        , eventQueue :: TChan Value              -- ^ Events being sent
-        , _secret    :: Int                      -- ^ the (session) number of this document
-        , conn       :: Maybe (WS.Connection)
+        { sending          :: TMVar T.Text             -- ^ Code to be sent to the browser
+                                                       -- This is a TMVar to stop the generation
+                                                       -- getting ahead of the rendering engine
+        , replies          :: TVar (Map.Map Int Value) -- ^ This is numbered replies, to ports
+        , eventQueue       :: TChan Value              -- ^ Events being sent
+        , _secret          :: Int                      -- ^ the (session) number of this document
+        , socketConnection :: Maybe (WS.Connection)    -- Socket connection if cleint is using websocket
         }
 
 -- 'Options' for Comet.
