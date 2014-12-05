@@ -32,6 +32,7 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Numeric
 import qualified Network.WebSockets as WS
+import qualified Data.ByteString.Char8         as BC
 
 -- Opening web-socket connection and handling calling the call-back function
 -- Adding websocket connection to Docuement object
@@ -44,17 +45,49 @@ socketApplication callback pending = do
     callbacks <- atomically $ newTVar $ Map.empty
     queue <- atomically $ newTChan
     let cxt = Document picture callbacks queue 0 (Just conn)
-    callback cxt
+    forkIO $ callback cxt
     receiveEvents conn cxt
+
 
 -- Continuously listening to incoming socket connection
 
 receiveEvents :: WS.Connection -> Document -> IO()
 receiveEvents conn document = forever $ do
-    evnt <- WS.receiveData conn
-    let val = fromJust $ decode' evnt
-    liftIO $ atomically $ do
-                          writeTChan (eventQueue document) val
+          --  WS.sendPing conn (BC.pack "ping")
+            evnt <- WS.receiveData conn
+            let wrappedVal = fromJust $ decode' evnt
+            let val =  let (Object m) = wrappedVal
+                       in HashMap.lookup (T.pack "reply") m
+            let uq =  let (Object m) = wrappedVal
+                       in HashMap.lookup (T.pack "uq") m
+
+            let pingvalout =  let (Object m) = wrappedVal
+                       in HashMap.lookup (T.pack "ping") m
+
+
+      --      putStrLn $ "ping: " ++ show pingvalout
+            case val of
+                Nothing  -> liftIO $ atomically $ do
+                                      let pingval =  let (Object m) = wrappedVal
+                                                 in HashMap.lookup (T.pack "ping") m
+                                      case pingval of
+                                          Nothing -> writeTChan (eventQueue document) wrappedVal
+                                          Just pingval -> return ()
+
+                Just replyval -> liftIO $ atomically $ do
+                                      case uq of
+                                          Nothing ->   return ()
+                                          Just uqVal -> do
+                                                        m <- readTVar (replies document)
+                                                        case fromJSON uqVal of
+                                                          Error msg -> fail msg
+                                                          Success a -> writeTVar (replies document) $ Map.insert a replyval m
+                                                        --uqInt::Int <- uqVal
+
+
+
+
+
 
 -- | connect "/foobar" (...) gives a scotty session that:
 --
@@ -164,6 +197,7 @@ connect opt callback = do
                 "Kansas Comet: post .../reply/" ++ show num ++ "/" ++ show uq
 
            wrappedVal :: Value <- jsonData
+    --       liftIO $ putStrLn $ show wrappedVal
            -- Unwrap the data wrapped, because 'jsonData' only supports
            -- objects or arrays, but not primitive values like numbers
            -- or booleans.
@@ -193,6 +227,8 @@ connect opt callback = do
            -- Unwrap the data wrapped, because 'jsonData' only supports
            -- objects or arrays, but not primitive values like numbers
            -- or booleans.
+
+
            let val = fromJust $ let (Object m) = wrappedVal
                                 in HashMap.lookup (T.pack "data") m
            --liftIO $ print (val :: Value)
@@ -221,7 +257,9 @@ kCometPlugin = do
 -- 'send' suspends the thread if the last javascript has not been *dispatched*
 -- the the browser.
 send :: Document -> T.Text -> IO ()
-send doc js =
+send doc js = do
+  --putStrLn "Comet send"
+--  putStrLn $ show js
   case (socketConnection doc) of
     Just connection -> WS.sendTextData connection $ js
     Nothing -> atomically $ putTMVar (sending doc) $! js

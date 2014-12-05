@@ -7,13 +7,15 @@
    var eventCallbacks = {};
    var please_debug = false;
    var socketConnection = null;
-
+   var serverSocketSupport = false;
+   var browserSocketSupport = false;
 
    var debug = function () { };
 
    var failure_callback = function(ig,ty,msg,re) {
     console.error("redraw failed (retrying) : " + ig + "," + ty + "," + msg);
    };
+
 
    $.kc = {
    // If we want to debug, then add a true
@@ -28,8 +30,9 @@
       }
       // If browser supports websocket use websocket else fallback on comet
       if (window.WebSocket) {
-         var loc     = window.location,
-             new_uri = null;
+         var loc                  = window.location,
+             new_uri              = null;
+             browserSocketSupport = true;
          if (loc.protocol === "https:") {
             new_uri = "wss:";
          } else {
@@ -38,20 +41,41 @@
          new_uri += "//" + loc.host;
          socketConnection = new WebSocket(new_uri);
          socketConnection.onopen = function (event) {
-            socketConnection.send("handShakeComplete");
-         };
-         socketConnection.onmessage = function (event) {
-           // Expecting data inform of script and executing on client side.
-           eval(event.data);
-         };
+           serverSocketSupport = true;
+           socketConnection.send("handShakeComplete");
+           $.kc.pingServer();
+          };
+          socketConnection.onmessage = function (event) {
+          // Expecting data inform of script and executing on client side.
+        //  console.log("inside receive messg!" + event.data);
+            $.kc.pingServer();
+            eval(event.data);
+          };
+          socketConnection.onclose = function () {
+          // Unexpected reply from server
+            serverSocketSupport = false;
+            $.ajax({ url     : the_prefix,
+                     type    : "POST",
+                     data    : "",
+                     dataType: "script"});
+            debug('connect(' + prefix + ')');
+      //      console.log("On CLOSE !!");
+           };
       }
-      else {
-        $.ajax({ url: the_prefix,
-                    type: "POST",
-                    data: "",
-                    dataType: "script"});
-      debug('connect(' + prefix + ')');
+      else if (!browserSocketSupport) {
+        $.ajax({ url     : the_prefix,
+                 type    : "POST",
+                 data    : "",
+                 dataType: "script"});
+        debug('connect(' + prefix + ')');
     }
+   },
+
+   pingServer: function() {
+     if (socketConnection) {
+       socketConnection.send("{ \"ping\": " + "\"ping\"" +" }");
+    //   $.kc.pingServer();
+     }
    },
 
    session: function(server_id, session_id) {
@@ -144,8 +168,13 @@
    // There is a requirement that obj be an object or array.
    // See RFC 4627 for details.
    reply: function (uq,obj) {
-      debug('reply(' + uq + ')');
-           $.ajax({ url: the_prefix + "/reply/" + kansascomet_server + "/" + kansascomet_session + "/" + uq,
+      console.log("IN reply" + uq + obj);
+      if(serverSocketSupport && browserSocketSupport) {
+        socketConnection.send("{ \"reply\": " + $.toJSON(obj) + ", \"uq\": "+uq+" }");
+      }
+      else{
+        debug('reply(' + uq + ')');
+        $.ajax({ url: the_prefix + "/reply/" + kansascomet_server + "/" + kansascomet_session + "/" + uq,
                     type: "POST",
                     // This wrapper is needed because the JSON parser
                     // used on the Haskell side only supports objects
@@ -157,9 +186,10 @@
                     data: "{ \"data\": " + $.toJSON(obj) + " }",
                     contentType: "application/json; charset=utf-8",
                     dataType: "json"});
+      }
    },
    event: function (obj) {
-     if(socketConnection) {
+     if(serverSocketSupport && browserSocketSupport) {
        socketConnection.send($.toJSON(obj));
      }
      else{
